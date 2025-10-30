@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dory.ai Memory</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Dory.ai Memory</h1>
+      <p class="tagline">Your personal knowledge graph</p>
+    </header>
+
+    <!-- Authentication Section -->
+    <div id="auth-section" class="section">
+      <p class="status" id="auth-status">Not configured</p>
+      <button id="setup-btn" class="btn btn-primary">Configure API Key</button>
+    </div>
+
+    <!-- Capture Section -->
+    <div id="capture-section" class="section hidden">
+      <h2>Quick Capture</h2>
+      <textarea id="memory-input" placeholder="What would you like to remember?"></textarea>
+      <div class="button-group">
+        <button id="save-btn" class="btn btn-primary">Save Memory</button>
+        <button id="save-selection-btn" class="btn btn-secondary">Save Selected Text</button>
+      </div>
+    </div>
+
+    <!-- Recent Memories Section -->
+    <div id="recent-section" class="section hidden">
+      <h2>Recent Memories</h2>
+      <div id="recent-memories" class="memory-list"></div>
+      <button id="view-all-btn" class="btn btn-link">View All Memories</button>
+    </div>
+
+    <!-- Search Section -->
+    <div id="search-section" class="section hidden">
+      <h2>Search</h2>
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search your memories...">
+        <button id="search-btn" class="btn btn-primary">Search</button>
+      </div>
+      <div id="search-results" class="memory-list"></div>
+    </div>
+
+    <!-- Stats Section -->
+    <div id="stats-section" class="section hidden">
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-value" id="stat-memories">-</span>
+          <span class="stat-label">Memories</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="stat-entities">-</span>
+          <span class="stat-label">Entities</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading hidden">
+      <div class="spinner"></div>
+      <p>Processing...</p>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
