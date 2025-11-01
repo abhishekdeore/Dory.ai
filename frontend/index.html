@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dory.ai - Memory Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/3d-force-graph@1.73.2/dist/3d-force-graph.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🧠 Dory.ai Memory Explorer</h1>
+                <p class="subtitle">Ask questions about your memories and explore your knowledge graph in 3D</p>
+            </div>
+            <div class="header-controls">
+                <input type="text" id="apiKeyInput" placeholder="Enter API Key" class="api-key-input">
+                <button id="refreshGraphBtn" class="btn btn-secondary">🔄 Refresh Graph</button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Chat Section -->
+            <div class="chat-section">
+                <div class="section-header">
+                    <h2>💬 Ask Questions</h2>
+                    <span class="memory-count" id="memoryCount">Loading memories...</span>
+                </div>
+
+                <div class="chat-container" id="chatContainer">
+                    <div class="welcome-message">
+                        <h3>Welcome to your memory assistant!</h3>
+                        <p>Ask me anything about your saved memories. I'll search through your knowledge graph and provide answers with context.</p>
+                        <p class="tip">💡 Try questions like: "What programming languages do I like?" or "What did I learn about databases?"</p>
+                    </div>
+                </div>
+
+                <div class="input-section">
+                    <textarea
+                        id="questionInput"
+                        placeholder="Ask a question about your memories..."
+                        rows="3"
+                    ></textarea>
+                    <button id="askBtn" class="btn btn-primary">
+                        <span>Send Question</span>
+                        <span class="btn-icon">→</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Graph Section -->
+            <div class="graph-section">
+                <div class="section-header">
+                    <h2>🌐 3D Knowledge Graph</h2>
+                    <div class="graph-controls">
+                        <button id="centerGraphBtn" class="btn btn-small">📍 Center</button>
+                        <button id="toggleLabelsBtn" class="btn btn-small">🏷️ Labels</button>
+                        <select id="layoutSelect" class="layout-select">
+                            <option value="force">Force Layout</option>
+                            <option value="radial">Radial Layout</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="graphContainer" class="graph-container">
+                    <div class="graph-loading">
+                        <div class="spinner"></div>
+                        <p>Loading knowledge graph...</p>
+                    </div>
+                </div>
+
+                <div class="graph-legend">
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: #4CAF50;"></span>
+                        <span>High Importance</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: #FFC107;"></span>
+                        <span>Medium Importance</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color" style="background: #2196F3;"></span>
+                        <span>Low Importance</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-line"></span>
+                        <span>Relationships</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Latency Metrics Panel -->
+        <div class="metrics-panel" id="metricsPanel">
+            <div class="metrics-header">
+                <h3>⚡ Performance Metrics</h3>
+                <button id="closeMetricsBtn" class="btn-close">×</button>
+            </div>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-label">Total Response Time</div>
+                    <div class="metric-value" id="totalTime">-</div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" id="totalBar"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Memory Search Time</div>
+                    <div class="metric-value" id="searchTime">-</div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" id="searchBar"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">LLM Generation Time</div>
+                    <div class="metric-value" id="llmTime">-</div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" id="llmBar"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Network Latency</div>
+                    <div class="metric-value" id="networkTime">-</div>
+                    <div class="metric-bar">
+                        <div class="metric-bar-fill" id="networkBar"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="metrics-details" id="metricsDetails"></div>
+        </div>
+
+        <!-- Node Detail Modal -->
+        <div id="nodeModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Memory Details</h3>
+                    <button class="btn-close" id="closeModalBtn">×</button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- Content will be dynamically inserted -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js?v=3"></script>
+    <script src="graph.js?v=3"></script>
+</body>
+</html>

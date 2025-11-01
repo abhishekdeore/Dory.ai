@@ -260,7 +260,8 @@ export class GraphService {
     limit: number = 10
   ): Promise<SimilarMemory[]> {
     const embedding = await EmbeddingService.generateEmbedding(queryText);
-    return this.findSimilarMemories(userId, embedding, 0.5, limit);
+    // Lower threshold to 0.0 to return all results, sorted by relevance
+    return this.findSimilarMemories(userId, embedding, 0.0, limit);
   }
 
   /**
