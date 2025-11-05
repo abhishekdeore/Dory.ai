@@ -9,7 +9,10 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
     api_key VARCHAR(255) UNIQUE NOT NULL,
+    last_login TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -103,9 +106,10 @@ CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
 CREATE TRIGGER update_memories_updated_at BEFORE UPDATE ON memories
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Insert test user
-INSERT INTO users (email, api_key)
-VALUES ('test@dory.ai', 'test_key_12345')
+-- Insert test user (password: TestPassword123!)
+-- Password hash generated with bcrypt, rounds=12
+INSERT INTO users (email, password_hash, name, api_key)
+VALUES ('test@dory.ai', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5eBL.HLz7YGPK', 'Test User', 'test_key_12345')
 ON CONFLICT (email) DO NOTHING;
 
 -- Sample queries for reference

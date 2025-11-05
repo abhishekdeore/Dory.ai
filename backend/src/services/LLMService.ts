@@ -75,7 +75,9 @@ export class LLMService {
         ...conversationHistory,
         { role: 'user', content: userMessage }
       ],
-      temperature: config.llm.temperature,
+      temperature: config.llm.temperature
+    }, {
+      timeout: 30000 // 30 second timeout for chat responses
     });
 
     return response.choices[0].message.content || '';
@@ -119,6 +121,8 @@ Only extract significant, memorable information. Return format: {"insights": [..
         ],
         temperature: 0.3,
         response_format: { type: 'json_object' }
+      }, {
+        timeout: 30000 // 30 second timeout
       });
 
       const content = response.choices[0].message.content;
@@ -146,14 +150,19 @@ Only extract significant, memorable information. Return format: {"insights": [..
   }
 
   /**
-   * Answer a question using the memory graph
+   * Answer a question using the memory graph with deep temporal reasoning
+   * This version prevents hallucinations by providing full relationship context
    */
   static async answerWithMemories(
     userId: string,
     question: string
-  ): Promise<{ answer: string; memories: any[] }> {
-    // Search for relevant memories
-    const memories = await GraphService.searchMemories(userId, question, 5);
+  ): Promise<{ answer: string; memories: any[]; graphContext?: string }> {
+    // Get memories with their full relationship context
+    const { memories, graphSummary } = await GraphService.getMemoriesWithContext(
+      userId,
+      question,
+      5
+    );
 
     if (memories.length === 0) {
       return {
@@ -162,37 +171,126 @@ Only extract significant, memorable information. Return format: {"insights": [..
       };
     }
 
-    // Build context from memories
-    const context = memories
-      .map((m, i) => `[${i + 1}] ${m.content}`)
-      .join('\n\n');
+    // Detect if this is a preference/opinion question
+    const preferenceKeywords = ['favorite', 'like', 'prefer', 'love', 'hate', 'dislike', 'enjoy', 'want'];
+    const isPreferenceQuestion = preferenceKeywords.some(keyword =>
+      question.toLowerCase().includes(keyword)
+    );
 
-    // Generate answer
+    // For preference questions, prioritize the most recent memories
+    let memoriesToUse = memories;
+    if (isPreferenceQuestion && memories.length > 0) {
+      // Sort by recency (most recent first)
+      const sortedByRecency = [...memories].sort((a, b) => {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        return dateB - dateA;
+      });
+
+      // For preferences, only use the 2 most recent memories to reduce contradictions
+      memoriesToUse = sortedByRecency.slice(0, 2);
+      console.log(`Preference question detected. Using ${memoriesToUse.length} most recent memories out of ${memories.length} total.`);
+    }
+
+    // Build rich context including relationships and temporal information
+    const contextParts: string[] = [];
+
+    // Add graph summary
+    contextParts.push(`GRAPH OVERVIEW:\n${graphSummary}\n`);
+
+    // Add each memory with its full context
+    for (let i = 0; i < memoriesToUse.length; i++) {
+      const memory = memoriesToUse[i];
+      const memoryBlock: string[] = [];
+
+      memoryBlock.push(`\n[MEMORY ${i + 1}] (Relevance: ${(memory.similarity * 100).toFixed(0)}%)`);
+      memoryBlock.push(`Content: ${memory.content}`);
+      memoryBlock.push(`Context: ${memory.temporalContext}`);
+
+      // Add connected memories for temporal reasoning
+      if (memory.connectedMemories.length > 0) {
+        memoryBlock.push('\nCONNECTED INFORMATION:');
+        for (const connected of memory.connectedMemories.slice(0, 3)) {
+          const relationship = memory.relationships.find(r =>
+            r.source_memory_id === connected.id || r.target_memory_id === connected.id
+          );
+
+          let relationLabel = 'related to';
+          if (relationship) {
+            relationLabel = relationship.relationship_type;
+          }
+
+          const createdDate = new Date(connected.created_at).toLocaleString();
+          memoryBlock.push(`  • [${relationLabel}] ${connected.content.substring(0, 150)}... (${createdDate})`);
+        }
+      }
+
+      // Flag outdated information
+      const metadata = typeof memory.metadata === 'string'
+        ? JSON.parse(memory.metadata)
+        : memory.metadata;
+
+      if (metadata?.outdated) {
+        memoryBlock.push('\n⚠️ NOTE: This information has been superseded by newer data');
+      }
+
+      contextParts.push(memoryBlock.join('\n'));
+    }
+
+    const fullContext = contextParts.join('\n');
+
+    // Generate answer with enhanced context
     const response = await openai.chat.completions.create({
       model: config.llm.model,
       messages: [
         {
           role: 'system',
-          content: `Answer the user's question based on the following information from their personal memory store. Be concise and cite specific memories when relevant.
+          content: `You are answering questions using a knowledge graph of the user's memories.
 
-Memories:
-${context}`
+CRITICAL INSTRUCTIONS:
+1. **GIVE DIRECT, CONCISE ANSWERS** - Answer in 1-2 sentences maximum
+2. **USE ONLY THE MOST RECENT MEMORY** when multiple memories about the same topic exist (check timestamps)
+3. **IGNORE memories marked as OUTDATED** - do not mention them
+4. **DO NOT explain contradictions or historical changes** unless specifically asked
+5. **DO NOT list multiple options** - just give the current/most recent answer
+6. **NEVER hallucinate** - only use information explicitly present in the memories
+7. If you don't know, say "I don't have that information" (don't explain why)
+
+RESPONSE FORMAT:
+- Keep answers SHORT and DIRECT
+- No bullet points unless asked
+- No timestamps or explanations unless asked
+- Answer the question directly
+
+EXAMPLES:
+❌ Bad: "Your most recent favorite drink is Coca-Cola from 11/1/2025, but earlier you liked Sprite and Strawberry Lemonade..."
+✅ Good: "Water - you prefer water over cold drinks now."
+
+❌ Bad: "You stated that you hate pav bhaji in a memory from 11/1/2025, but there is no clear favorite food mentioned..."
+✅ Good: "You don't like pav bhaji, but no specific favorite food is recorded."
+
+${fullContext}`
         },
         {
           role: 'user',
           content: question
         }
       ],
-      temperature: 0.5,
+      temperature: 0.3 // Lower temperature to reduce hallucinations
+    }, {
+      timeout: 30000 // 30 second timeout
     });
 
     return {
       answer: response.choices[0].message.content || '',
-      memories: memories.map(m => ({
+      memories: memoriesToUse.map(m => ({
         id: m.id,
         content: m.content,
-        similarity: m.similarity
-      }))
+        similarity: m.similarity,
+        temporalContext: m.temporalContext,
+        relationshipCount: m.relationships.length
+      })),
+      graphContext: graphSummary
     };
   }
 }
