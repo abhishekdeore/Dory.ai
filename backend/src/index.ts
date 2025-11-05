@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { config, validateEnv } from './config/env';
 import { testConnection, closePool } from './config/database';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import authRouter from './routes/auth';
 import memoriesRouter from './routes/memories';
 import searchRouter from './routes/search';
 import chatRouter from './routes/chat';
@@ -32,6 +33,7 @@ app.use((req, _res, next) => {
 });
 
 // Routes
+app.use('/api/auth', authRouter);
 app.use('/api/memories', memoriesRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/chat', chatRouter);
@@ -94,6 +96,10 @@ async function startServer() {
 Endpoints:
   GET  /health
   GET  /
+
+  POST /api/auth/signup
+  POST /api/auth/login
+  POST /api/auth/verify
 
   POST   /api/memories
   GET    /api/memories

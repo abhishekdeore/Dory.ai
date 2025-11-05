@@ -16,10 +16,10 @@ router.post('/', async (req, res, next) => {
     const userId = req.user!.id;
 
     // Validate content
-    if (!content || content.trim().length === 0) {
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
       return res.status(400).json({
         success: false,
-        error: 'Content is required'
+        error: 'Content is required and must be a string'
       });
     }
 
@@ -31,9 +31,34 @@ router.post('/', async (req, res, next) => {
       });
     }
 
+    // Sanitize content to prevent XSS
+    const sanitizedContent = content
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;')
+      .replace(/\//g, '&#x2F;');
+
+    // Validate source_url if provided
+    if (source_url && typeof source_url !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'source_url must be a string'
+      });
+    }
+
+    // Validate content_type if provided
+    const validContentTypes = ['text', 'url', 'image', 'fact', 'event', 'preference', 'concept'];
+    if (content_type && !validContentTypes.includes(content_type)) {
+      return res.status(400).json({
+        success: false,
+        error: `content_type must be one of: ${validContentTypes.join(', ')}`
+      });
+    }
+
     const memory = await GraphService.createMemory(
       userId,
-      content,
+      sanitizedContent,
       source_url,
       content_type
     );
