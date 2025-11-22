@@ -248,12 +248,13 @@ When you interact with any LLM through Dory.ai:
 - **Memory browser**: View all saved memories with metadata
 - **Settings page**: Configure API key and backend URL
 
-#### Web Interface (Frontend + MVP Dashboard)
-- **Next.js 15 Dashboard**: Modern React-based UI with TypeScript
+#### Web Dashboard (Next.js 15 MVP)
+- **Modern React UI**: Built with Next.js 15, React 19, and TypeScript
 - **Chat interface**: Ask questions with memory-augmented responses
-- **3D graph explorer**: Interactive visualization of knowledge graph
+- **3D graph explorer**: Interactive WebGL-powered knowledge graph visualization
 - **Memory management**: Create, edit, archive, restore memories
 - **Statistics dashboard**: Memory count, relationship metrics, freshness distribution
+- **Authentication**: Secure user authentication with NextAuth
 - **Dark theme**: Modern, eye-friendly design
 
 #### REST API
@@ -273,6 +274,24 @@ When you interact with any LLM through Dory.ai:
 
 ---
 
+## 📐 Architecture & Optimization
+
+For comprehensive architecture documentation and scaling strategies:
+
+- **[Architecture Analysis & Optimization](ARCHITECTURE_ANALYSIS_AND_OPTIMIZATION.md)** - 150+ page comprehensive analysis including:
+  - Current architecture deep dive with diagrams
+  - Performance bottlenecks and scalability issues
+  - Optimized microservices architecture design
+  - 3-phase migration strategy (Quick Wins → Service Extraction → Full Microservices)
+  - Cost analysis and ROI projections
+  - Implementation roadmap with timelines
+
+- **[Executive Summary](ARCHITECTURE_EXECUTIVE_SUMMARY.md)** - Quick overview for stakeholders and decision-makers
+
+- **[Quick Reference Guide](ARCHITECTURE_QUICK_REFERENCE.md)** - Implementation checklists, command reference, and troubleshooting
+
+---
+
 ## 🏗️ Architecture Deep Dive
 
 ### Technology Stack
@@ -287,13 +306,15 @@ When you interact with any LLM through Dory.ai:
 - **Validation**: Zod for runtime type checking
 - **Testing**: Jest with comprehensive unit and security tests
 
-#### Frontend & MVP
-- **Framework**: Next.js 15 (App Router) with React 18
+#### Frontend (MVP Dashboard)
+- **Framework**: Next.js 15 (App Router) with React 19
 - **Language**: TypeScript 5.0 with strict mode
+- **Authentication**: NextAuth v5 (beta)
 - **3D Graphics**: React Three Fiber + Three.js + ForceGraph3D
-- **Styling**: CSS Modules with CSS variables for theming
-- **State Management**: React Context + hooks
+- **UI Components**: Radix UI + Tailwind CSS + shadcn/ui
+- **State Management**: Zustand + React Query (TanStack Query)
 - **HTTP Client**: Native fetch with TypeScript types
+- **Styling**: Tailwind CSS with CSS variables for theming
 
 #### Browser Extension
 - **Manifest**: V3 (Manifest Version 3 for modern Chrome)
@@ -821,29 +842,30 @@ dory.ai/
 │   │   ├── middleware/
 │   │   │   ├── auth.ts              # API key authentication
 │   │   │   └── errorHandler.ts     # Global error handling
-│   │   └── server.ts                # Express app setup
+│   │   └── index.ts                 # Express app setup & entry point
 │   ├── migrations/
 │   │   └── add_memory_lifecycle.sql # Database migrations
 │   ├── tests/
 │   │   ├── memory-lifecycle.test.ts # Automated test suite
 │   │   └── manual-testing.md        # Security analysis
 │   └── package.json
-├── mvp/                             # Next.js 15 Dashboard
-│   ├── app/
-│   │   ├── page.tsx                 # Main dashboard
-│   │   ├── layout.tsx               # Root layout
-│   │   └── globals.css              # Global styles
-│   ├── components/
-│   │   ├── MemoryGraph.tsx          # 3D graph component
-│   │   ├── ChatInterface.tsx        # Chat UI
-│   │   └── MemoryList.tsx           # Memory browser
+├── mvp/                             # Next.js 15 Dashboard (Main UI)
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx             # Landing page
+│   │   │   ├── layout.tsx           # Root layout
+│   │   │   ├── providers.tsx        # Context providers
+│   │   │   ├── globals.css          # Global styles
+│   │   │   └── dashboard/           # Dashboard pages
+│   │   │       ├── page.tsx         # Main dashboard
+│   │   │       ├── memories/        # Memory management pages
+│   │   │       └── chat/            # Chat interface page
+│   │   ├── components/
+│   │   │   ├── MemoryGraph3D.tsx    # 3D graph visualization (WebGL)
+│   │   │   └── ui/                  # Reusable UI components
+│   │   └── lib/                     # Utilities and helpers
 │   └── package.json
-├── frontend/                        # Legacy web UI (being replaced by MVP)
-│   ├── index.html
-│   ├── app.js
-│   ├── graph.js                     # 3D visualization
-│   └── styles.css
-├── extension/                       # Chrome Extension
+├── extension/                       # Chrome Extension (Manifest V3)
 │   ├── popup/
 │   │   ├── popup.html
 │   │   └── popup.js                 # Main extension UI
@@ -856,8 +878,13 @@ dory.ai/
 │   │   └── content.js               # Page interaction
 │   └── manifest.json                # V3 manifest
 ├── schema.sql                       # Initial database schema
+├── README.md                        # This file
 ├── INSTALLATION_AND_SETUP_GUIDE.md  # Comprehensive setup guide
-└── README.md                        # This file
+├── TECHNICAL_DOCUMENTATION.md       # Detailed technical documentation
+├── ARCHITECTURE_ANALYSIS_AND_OPTIMIZATION.md  # Architecture deep dive & optimization
+├── ARCHITECTURE_EXECUTIVE_SUMMARY.md          # Architecture overview for stakeholders
+├── ARCHITECTURE_QUICK_REFERENCE.md            # Quick reference & checklists
+└── SECURITY_AUDIT_REPORT.md         # Security analysis and audit
 ```
 
 ### Development Workflow
@@ -1098,9 +1125,9 @@ SOFTWARE.
 
 **Current Version**: 1.0.0 (Production-Ready)
 **Status**: ✅ Active Development
-**Production Readiness**: 95% (see manual-testing.md for security analysis)
+**Production Readiness**: 95% (see SECURITY_AUDIT_REPORT.md for security analysis)
 **Test Coverage**: 87%
-**Last Updated**: 2025-11-03
+**Last Updated**: 2025-11-22
 
 ---
 
