@@ -1,8 +1,22 @@
 import express from 'express';
+import multer from 'multer';
 import { GraphService } from '../services/GraphService';
+import { PDFService } from '../services/PDFService';
 import { authenticateApiKey } from '../middleware/auth';
 
 const router = express.Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed'));
+    }
+  },
+});
 
 // All routes require authentication
 router.use(authenticateApiKey);
@@ -66,6 +80,52 @@ router.post('/', async (req, res, next) => {
     return res.status(201).json({
       success: true,
       memory
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+/**
+ * POST /api/memories/upload-pdf - Parse a PDF and store chunks as memories
+ */
+router.post('/upload-pdf', upload.single('pdf'), async (req, res, next) => {
+  try {
+    const userId = req.user!.id;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No PDF file uploaded. Send the file as multipart/form-data with field name "pdf".',
+      });
+    }
+
+    let parsed;
+    try {
+      parsed = await PDFService.parseAndChunk(req.file.buffer, req.file.originalname);
+    } catch (parseError) {
+      return res.status(422).json({
+        success: false,
+        error: parseError instanceof Error ? parseError.message : 'Failed to parse PDF',
+      });
+    }
+
+    if (parsed.chunks.length === 0) {
+      return res.status(422).json({
+        success: false,
+        error: 'No text content could be extracted from this PDF.',
+      });
+    }
+
+    const result = await GraphService.createPDFMemories(userId, parsed.chunks, parsed);
+
+    return res.status(201).json({
+      success: true,
+      message: `Successfully extracted ${result.chunkCount} chunk(s) from "${parsed.filename}"`,
+      documentMemoryId: result.documentMemoryId,
+      chunkCount: result.chunkCount,
+      numPages: parsed.numPages,
+      filename: parsed.filename,
     });
   } catch (error) {
     return next(error);

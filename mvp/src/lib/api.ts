@@ -86,6 +86,29 @@ class ApiClient {
       body: JSON.stringify({ query, limit }),
     })
   }
+
+  // PDF upload — sends as multipart/form-data
+  async uploadPDF(file: File) {
+    const url = `${this.baseURL}/memories/upload-pdf`
+    const formData = new FormData()
+    formData.append('pdf', file)
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        // No Content-Type here — browser sets it with the correct multipart boundary
+        'x-api-key': this.getApiKey(),
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: response.statusText }))
+      throw new Error(errorData.error || `API Error: ${response.statusText}`)
+    }
+
+    return response.json()
+  }
 }
 
 export const api = new ApiClient()

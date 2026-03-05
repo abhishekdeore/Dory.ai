@@ -24,16 +24,20 @@ const MemoryGraph3D = memo(function MemoryGraph3D({ data }: MemoryGraph3DProps) 
   }, [data])
 
   const transformedData = {
-    nodes: data.nodes.map((node: any) => ({
-      id: node.id,
-      name: node.content?.substring(0, 50) || 'Memory',
-      fullContent: node.content || 'Memory',
-      val: (node.importance_score || 0.5) * 20,
-      color: getNodeColor(node.freshness || 0, node.importance_score || 0.5),
-      importance: node.importance_score || 0.5,
-      freshness: node.freshness || 0,
-      daysUntilExpiry: node.days_until_expiry || 30,
-    })),
+    nodes: data.nodes.map((node: any) => {
+      const meta = typeof node.metadata === 'string' ? JSON.parse(node.metadata || '{}') : (node.metadata || {})
+      return {
+        id: node.id,
+        name: node.content?.substring(0, 50) || 'Memory',
+        fullContent: node.content || 'Memory',
+        val: (node.importance_score || 0.5) * 20,
+        color: getNodeColor(node.freshness || 0, node.importance_score || 0.5),
+        importance: node.importance_score || 0.5,
+        freshness: node.freshness || 0,
+        daysUntilExpiry: node.days_until_expiry || 30,
+        summaryCategory: meta?.summary?.category || null,
+      }
+    }),
     links: data.edges.map((edge: any) => ({
       source: edge.source_memory_id,
       target: edge.target_memory_id,
@@ -217,9 +221,9 @@ const MemoryGraph3D = memo(function MemoryGraph3D({ data }: MemoryGraph3DProps) 
             max-width: 320px;
             border-left: 3px solid ${node.color};
           ">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center;">
               <strong>${freshnessLabel}</strong>
-              <span style="opacity: 0.8;">${daysLeft} days left</span>
+              ${node.summaryCategory ? `<span style="background: rgba(96,165,250,0.2); color: #93c5fd; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.03em;">${node.summaryCategory}</span>` : `<span style="opacity: 0.8;">${daysLeft} days left</span>`}
             </div>
             <div style="margin-bottom: 4px; opacity: 0.9;">
               Importance: ${(node.importance * 100).toFixed(0)}% | Freshness: ${freshnessPercent}%

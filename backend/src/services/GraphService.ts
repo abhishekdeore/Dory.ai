@@ -1,6 +1,7 @@
 import { query } from '../config/database';
 import { EmbeddingService } from './EmbeddingService';
 import { NLPService } from './NLPService';
+import { PDFChunk, PDFParseResult } from './PDFService';
 import OpenAI from 'openai';
 import { config } from '../config/env';
 
@@ -57,8 +58,15 @@ export class GraphService {
     sourceUrl?: string,
     contentType: string = 'text'
   ): Promise<Memory> {
-    // Generate embedding for semantic search
-    const embedding = await EmbeddingService.generateEmbedding(content);
+    // Generate summary (category + description) for improved retrieval
+    const summary = await this.generateSummary(content);
+
+    // Generate embedding — use combined text if summary is available so natural-language
+    // queries match the semantic label rather than raw content phrasing
+    const embeddingInput = summary
+      ? `${summary.category}: ${summary.description}\n\n${content}`
+      : content;
+    const embedding = await EmbeddingService.generateEmbedding(embeddingInput);
 
     // Categorize the memory and determine importance
     const { type, importance, tags } = await NLPService.categorizeMemory(content);
@@ -88,7 +96,7 @@ export class GraphService {
         sourceUrl,
         JSON.stringify(embedding),
         importance,
-        JSON.stringify({ type, tags, entity_count: entities.length })
+        JSON.stringify({ type, tags, entity_count: entities.length, ...(summary ? { summary } : {}) })
       ]
     );
 
@@ -760,6 +768,149 @@ REASON: [one sentence explanation]`;
     }
 
     return context.join(' | ');
+  }
+
+  /**
+   * Generate a category label and one-sentence description for a memory using GPT-4o-mini.
+   * Returns null on failure — callers must not fail if summary is unavailable.
+   */
+  private static async generateSummary(
+    content: string
+  ): Promise<{ category: string; description: string } | null> {
+    try {
+      const truncated = content.substring(0, 500);
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'Generate a category label and summary for this memory. Return JSON only:\n{"category": "2-3 word lowercase label", "description": "one concise sentence"}'
+          },
+          { role: 'user', content: `Memory: ${truncated}` }
+        ],
+        temperature: 0,
+        max_tokens: 80,
+        response_format: { type: 'json_object' },
+      }, { timeout: 10000 });
+
+      const parsed = JSON.parse(response.choices[0].message.content || '{}');
+      if (parsed.category && parsed.description) {
+        return { category: String(parsed.category), description: String(parsed.description) };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Create memories from a parsed PDF — one parent document memory plus
+   * one memory per chunk, with explicit sequential and document→chunk relationships.
+   * Contradiction detection is intentionally skipped for PDF chunks.
+   */
+  static async createPDFMemories(
+    userId: string,
+    chunks: PDFChunk[],
+    pdfMeta: PDFParseResult
+  ): Promise<{ documentMemoryId: string; chunkCount: number }> {
+    const userResult = await query(
+      `SELECT memory_retention_days FROM users WHERE id = $1`,
+      [userId]
+    );
+    const retentionDays = userResult.rows[0]?.memory_retention_days || 30;
+
+    // Create parent document memory
+    const docContent = `PDF Document: "${pdfMeta.filename}" — ${pdfMeta.numPages} page(s), ${chunks.length} chunk(s) extracted.`;
+    const docEmbedding = await EmbeddingService.generateEmbedding(docContent);
+
+    const docResult = await query(
+      `INSERT INTO memories (user_id, content, content_type, embedding, importance_score, metadata, expires_at)
+       VALUES ($1, $2, $3, $4::vector, $5, $6, NOW() + INTERVAL '${retentionDays} days')
+       RETURNING *`,
+      [
+        userId,
+        docContent,
+        'pdf_document',
+        JSON.stringify(docEmbedding),
+        0.8,
+        JSON.stringify({
+          source: 'pdf',
+          filename: pdfMeta.filename,
+          num_pages: pdfMeta.numPages,
+          total_chunks: chunks.length,
+          char_count: pdfMeta.charCount,
+          tags: ['pdf', 'document'],
+        }),
+      ]
+    );
+
+    const docMemory = docResult.rows[0];
+    const chunkMemoryIds: string[] = [];
+
+    // Create one memory per chunk
+    for (const chunk of chunks) {
+      const chunkSummary = await this.generateSummary(chunk.text);
+      const chunkEmbeddingInput = chunkSummary
+        ? `${chunkSummary.category}: ${chunkSummary.description}\n\n${chunk.text}`
+        : chunk.text;
+      const embedding = await EmbeddingService.generateEmbedding(chunkEmbeddingInput);
+      const entities = await NLPService.extractEntities(chunk.text);
+      const { importance, tags } = await NLPService.categorizeMemory(chunk.text);
+
+      const chunkResult = await query(
+        `INSERT INTO memories (user_id, content, content_type, embedding, importance_score, metadata, expires_at)
+         VALUES ($1, $2, $3, $4::vector, $5, $6, NOW() + INTERVAL '${retentionDays} days')
+         RETURNING *`,
+        [
+          userId,
+          chunk.text,
+          'pdf_chunk',
+          JSON.stringify(embedding),
+          importance,
+          JSON.stringify({
+            source: 'pdf',
+            filename: pdfMeta.filename,
+            chunk_index: chunk.chunkIndex,
+            total_chunks: chunk.totalChunks,
+            pdf_document_id: docMemory.id,
+            tags: [...tags, 'pdf'],
+            ...(chunkSummary ? { summary: chunkSummary } : {}),
+          }),
+        ]
+      );
+
+      const chunkMemory = chunkResult.rows[0];
+      chunkMemoryIds.push(chunkMemory.id);
+
+      if (entities.length > 0) {
+        await this.storeEntities(userId, chunkMemory.id, entities);
+      }
+    }
+
+    // Relationship 1: parent document → each chunk (extends)
+    for (const chunkId of chunkMemoryIds) {
+      await query(
+        `INSERT INTO memory_relationships (user_id, source_memory_id, target_memory_id, relationship_type, strength)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (source_memory_id, target_memory_id, relationship_type) DO NOTHING`,
+        [userId, docMemory.id, chunkId, 'extends', 1.0]
+      );
+    }
+
+    // Relationship 2: chunk[N] → chunk[N+1] (extends, sequential)
+    for (let i = 0; i < chunkMemoryIds.length - 1; i++) {
+      await query(
+        `INSERT INTO memory_relationships (user_id, source_memory_id, target_memory_id, relationship_type, strength)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (source_memory_id, target_memory_id, relationship_type) DO NOTHING`,
+        [userId, chunkMemoryIds[i], chunkMemoryIds[i + 1], 'extends', 0.95]
+      );
+    }
+
+    return {
+      documentMemoryId: docMemory.id,
+      chunkCount: chunkMemoryIds.length,
+    };
   }
 
   /**

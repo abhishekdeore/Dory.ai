@@ -203,7 +203,14 @@ Only extract significant, memorable information. Return format: {"insights": [..
       const memory = memoriesToUse[i];
       const memoryBlock: string[] = [];
 
+      const memMeta = typeof memory.metadata === 'string'
+        ? JSON.parse(memory.metadata)
+        : (memory.metadata || {});
+      const memSummary = memMeta?.summary;
+
       memoryBlock.push(`\n[MEMORY ${i + 1}] (Relevance: ${(memory.similarity * 100).toFixed(0)}%)`);
+      if (memSummary?.category) memoryBlock.push(`Category: ${memSummary.category}`);
+      if (memSummary?.description) memoryBlock.push(`Summary: ${memSummary.description}`);
       memoryBlock.push(`Content: ${memory.content}`);
       memoryBlock.push(`Context: ${memory.temporalContext}`);
 
@@ -245,29 +252,32 @@ Only extract significant, memorable information. Return format: {"insights": [..
       messages: [
         {
           role: 'system',
-          content: `You are answering questions using a knowledge graph of the user's memories.
+          content: `You are a warm, knowledgeable assistant answering questions using the user's personal memory graph.
 
-CRITICAL INSTRUCTIONS:
-1. **GIVE DIRECT, CONCISE ANSWERS** - Answer in 1-2 sentences maximum
-2. **USE ONLY THE MOST RECENT MEMORY** when multiple memories about the same topic exist (check timestamps)
-3. **IGNORE memories marked as OUTDATED** - do not mention them
-4. **DO NOT explain contradictions or historical changes** unless specifically asked
-5. **DO NOT list multiple options** - just give the current/most recent answer
-6. **NEVER hallucinate** - only use information explicitly present in the memories
-7. If you don't know, say "I don't have that information" (don't explain why)
+CORE RULES:
+1. **USE ONLY THE MOST RECENT MEMORY** when multiple memories cover the same topic — check timestamps
+2. **IGNORE memories marked as OUTDATED** completely
+3. **NEVER hallucinate** — only use information explicitly present in the provided memories
+4. If the memories don't contain enough information, say "I don't have that recorded" — don't guess
+5. The "Summary" and "Category" fields are metadata to help you understand the memory — use them for context, but answer from the "Content"
 
-RESPONSE FORMAT:
-- Keep answers SHORT and DIRECT
-- No bullet points unless asked
-- No timestamps or explanations unless asked
-- Answer the question directly
+TONE & LENGTH — read the question and match the response style:
+- Simple factual questions ("what drink do I like?") → short, direct answer (1-2 sentences)
+- Reflective or open-ended questions ("tell me about my habits") → a few sentences, conversational
+- Complex or multi-part questions → as long as needed, clear structure
+- Be warm and natural, not clinical. Don't over-explain. Don't pad with filler.
+
+FORMAT:
+- Answer directly — no preamble like "Based on your memories..."
+- Avoid bullet points unless the question calls for a list
+- No timestamps or metadata in the answer unless asked
 
 EXAMPLES:
-❌ Bad: "Your most recent favorite drink is Coca-Cola from 11/1/2025, but earlier you liked Sprite and Strawberry Lemonade..."
-✅ Good: "Water - you prefer water over cold drinks now."
+❌ "Based on memory 1 from 11/1/2025, your favorite drink is..."
+✅ "You prefer Mocha Latte — you've mentioned disliking Chai Tea Latte."
 
-❌ Bad: "You stated that you hate pav bhaji in a memory from 11/1/2025, but there is no clear favorite food mentioned..."
-✅ Good: "You don't like pav bhaji, but no specific favorite food is recorded."
+❌ "I don't have that information in my memory database."
+✅ "I don't have that recorded."
 
 ${fullContext}`
         },

@@ -6,7 +6,7 @@ import { api } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Send, Bot, User } from 'lucide-react'
+import { Send, Bot, User, ChevronDown, ChevronUp } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 interface Message {
@@ -18,6 +18,10 @@ interface Message {
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
+  const [openSources, setOpenSources] = useState<Record<number, boolean>>({})
+
+  const toggleSources = (index: number) =>
+    setOpenSources((prev) => ({ ...prev, [index]: !prev[index] }))
 
   const askMutation = useMutation({
     mutationFn: (question: string) => api.askQuestion(question),
@@ -85,14 +89,26 @@ export default function ChatPage() {
                       <p className="text-sm">{message.content}</p>
                       {message.memories && message.memories.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-slate-700">
-                          <p className="text-xs text-gray-400 mb-2">
-                            Sources ({message.memories.length}):
-                          </p>
-                          {message.memories.map((mem: any, j: number) => (
-                            <div key={j} className="text-xs text-gray-400 mt-1">
-                              • {mem.content.substring(0, 100)}...
+                          <button
+                            onClick={() => toggleSources(i)}
+                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors"
+                          >
+                            {openSources[i] ? (
+                              <ChevronUp className="w-3 h-3" />
+                            ) : (
+                              <ChevronDown className="w-3 h-3" />
+                            )}
+                            Sources ({message.memories.length})
+                          </button>
+                          {openSources[i] && (
+                            <div className="mt-2 space-y-1">
+                              {message.memories.map((mem: any, j: number) => (
+                                <div key={j} className="text-xs text-gray-400">
+                                  • {mem.content.substring(0, 100)}...
+                                </div>
+                              ))}
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
                     </div>
